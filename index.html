@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asignación de Predicadores</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .hidden {
+            display: none;
+        }
+        input[type="text"] {
+            width: 90%;
+            height: 40px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        button {
+            font-size: 18px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+        .center-section {
+            margin-bottom: 20px;
+        }
+        .preferences {
+            margin-bottom: 20px;
+        }
+        .preferences label {
+            font-size: 14px;
+            margin-right: 10px;
+            display: inline-block;
+        }
+        .preferences input[type="checkbox"] {
+            transform: scale(0.8);
+            margin-right: 5px;
+        }
+        .preferences div {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Asignación de Predicadores</h1>
+    <div>
+        <label>Predicadores:</label>
+        <input type="text" id="predicadores">
+        <br><br>
+        <label>Centros:</label>
+        <input type="text" id="centros">
+        <br><br>
+        <label>Meses (formato: MM/YYYY):</label>
+        <input type="text" id="meses">
+        <br><br>
+        <button id="toggle-preferences-btn" onclick="togglePreferences()">Mostrar Preferencias</button>
+        <div id="preferences-container" class="preferences hidden">
+            <!-- Checkboxes para preferencias de predicadores -->
+        </div>
+        <button onclick="calcularAsignacion()">Calcular</button>
+    </div>
+    <div id="result" class="hidden">
+        <h2>Resultado por Centro</h2>
+        <div id="tables-container">
+            <!-- Las tablas de cada centro se llenarán dinámicamente -->
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        function cargarDatosDesdeAPI() {
+            return new Promise((resolve, reject) => {
+                let req = new XMLHttpRequest();
+
+                req.onreadystatechange = () => {
+                    if (req.readyState === XMLHttpRequest.DONE) {
+                        if (req.status === 200) {
+                            try {
+                                const response = JSON.parse(req.responseText);
+                                resolve(response.record);
+                            } catch (error) {
+                                reject("Error al parsear el JSON.");
+                            }
+                        } else {
+                            reject(`Error: ${req.status} - ${req.statusText}`);
+                        }
+                    }
+                };
+
+                req.open("GET", "https://api.jsonbin.io/v3/b/6740436fad19ca34f8ce3a2a", true);
+                req.setRequestHeader("X-Master-Key", "$2a$10$AgLUVIL8kxIBz1SqulPPh.w7nAKtbubDt8pc7IozaQhiZmFBAXSGG");
+                req.setRequestHeader("X-Access-Key", "$2a$10$Kn3ifvb/A36qqUKErQJUke.Y4Dkw.5muF6KH83jvUzGFaWYcpOd7i");
+                req.send();
+            });
+        }
+
+        async function cargarDatos() {
+            try {
+                const apiData = await cargarDatosDesdeAPI();
+                inicializarFormulario(apiData);
+            } catch (error) {
+                console.error(error);
+                inicializarFormulario(data);
+            }
+        }
+
+        function inicializarFormulario(datos) {
+            document.getElementById('predicadores').value = datos.predicadores.join(',');
+            document.getElementById('centros').value = datos.centros.join(',');
+            document.getElementById('meses').value = datos.meses.join(',');
+            mostrarPreferencias(datos.predicadores, datos.centros);
+        }
+
+        function mostrarPreferencias(predicadores, centros) {
+            const container = document.getElementById("preferences-container");
+            container.innerHTML = "";
+
+            predicadores.forEach(predicador => {
+                const section = document.createElement("div");
+                section.innerHTML = `<strong>${predicador}:</strong>`;
+
+                centros.forEach(centro => {
+                    const label = document.createElement("label");
+                    label.innerHTML = `<input type="checkbox" data-predicador="${predicador}" data-centro="${centro}" checked> ${centro}`;
+                    section.appendChild(label);
+                });
+
+                container.appendChild(section);
+            });
+        }
+
+        function togglePreferences() {
+            const preferencesContainer = document.getElementById("preferences-container");
+            const toggleButton = document.getElementById("toggle-preferences-btn");
+
+            if (preferencesContainer.classList.contains("hidden")) {
+                preferencesContainer.classList.remove("hidden");
+                toggleButton.textContent = "Ocultar Preferencias";
+            } else {
+                preferencesContainer.classList.add("hidden");
+                toggleButton.textContent = "Mostrar Preferencias";
+            }
+        }
+
+        function calcularAsignacion() {
+            const predicadores = document.getElementById('predicadores').value.split(',').map(p => p.trim());
+            const centros = document.getElementById('centros').value.split(',').map(c => c.trim());
+            const meses = document.getElementById('meses').value.split(',').map(m => m.trim());
+
+            const domingos = meses.flatMap(mes => obtenerDomingosDeMes(mes));
+
+            const asignacion = asignarPredicadores(predicadores, centros, domingos);
+            renderScheduleByCenter(asignacion, centros);
+
+            document.getElementById("result").classList.remove("hidden");
+        }
+
+        cargarDatos();
+    </script>
+</body>
+</html>
