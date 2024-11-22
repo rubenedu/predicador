@@ -37,18 +37,30 @@
         }
         .preferences {
             margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .preferences div {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+        .preferences strong {
+            font-size: 16px;
+            display: block;
+            margin-bottom: 5px;
         }
         .preferences label {
             font-size: 14px;
-            margin-right: 10px;
+            margin-right: 15px;
             display: inline-block;
         }
         .preferences input[type="checkbox"] {
-            transform: scale(0.8);
-            margin-right: 5px;
-        }
-        .preferences div {
-            margin-bottom: 5px;
+            transform: scale(1.2);
+            margin-right: 8px;
         }
     </style>
 </head>
@@ -158,12 +170,105 @@
             const centros = document.getElementById('centros').value.split(',').map(c => c.trim());
             const meses = document.getElementById('meses').value.split(',').map(m => m.trim());
 
+            const preferencias = {};
+            document.querySelectorAll("#preferences-container div").forEach(div => {
+                const predicador = div.querySelector("strong").textContent;
+                const checkboxes = div.querySelectorAll("input[type=checkbox]");
+
+                preferencias[predicador] = [];
+                checkboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        const centro = checkbox.dataset.centro;
+                        preferencias[predicador].push(centro);
+                    }
+                });
+            });
+
             const domingos = meses.flatMap(mes => obtenerDomingosDeMes(mes));
 
-            const asignacion = asignarPredicadores(predicadores, centros, domingos);
+            const asignacion = asignarPredicadoresConPreferencias(predicadores, centros, domingos, preferencias);
             renderScheduleByCenter(asignacion, centros);
 
             document.getElementById("result").classList.remove("hidden");
+        }
+
+        function asignarPredicadoresConPreferencias(predicadores, centros, domingos, preferencias) {
+            const asignacion = {};
+            const conteoPredicadores = Object.fromEntries(predicadores.map(p => [p, 0]));
+
+            domingos.forEach(dia => {
+                asignacion[dia] = {};
+                let centrosDisponibles = [...centros];
+
+                predicadores.sort(() => Math.random() - 0.5);
+
+                predicadores.forEach(predicador => {
+                    const centrosPreferidos = preferencias[predicador] || centros;
+                    const opciones = centrosDisponibles.filter(c => centrosPreferidos.includes(c));
+
+                    if (opciones.length > 0) {
+                        const centroAsignado = opciones[Math.floor(Math.random() * opciones.length)];
+                        asignacion[dia][centroAsignado] = predicador;
+                        conteoPredicadores[predicador]++;
+                        centrosDisponibles = centrosDisponibles.filter(c => c !== centroAsignado);
+                    }
+                });
+            });
+
+            return asignacion;
+        }
+
+        function renderScheduleByCenter(asignacion, centros) {
+            const container = document.getElementById("tables-container");
+            container.innerHTML = "";
+
+            centros.forEach(centro => {
+                const table = document.createElement("table");
+                const thead = document.createElement("thead");
+                const tbody = document.createElement("tbody");
+
+                thead.innerHTML = `
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Predicador</th>
+                    </tr>
+                `;
+
+                Object.keys(asignacion).forEach(dia => {
+                    if (asignacion[dia][centro]) {
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${dia}</td>
+                            <td>${asignacion[dia][centro]}</td>
+                        `;
+                        tbody.appendChild(row);
+                    }
+                });
+
+                table.appendChild(thead);
+                table.appendChild(tbody);
+                const centerSection = document.createElement("div");
+                centerSection.className = "center-section";
+                centerSection.innerHTML = `<h3>${centro}</h3>`;
+                centerSection.appendChild(table);
+                container.appendChild(centerSection);
+            });
+        }
+
+        function obtenerDomingosDeMes(mes) {
+            const [month, year] = mes.split("/").map(Number);
+            const date = new Date(year, month - 1, 1);
+            const domingos = [];
+
+            while (date.getMonth() === month - 1) {
+                if (date.getDay() === 0) {
+                    const europeanDate = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    domingos.push(europeanDate);
+                }
+                date.setDate(date.getDate() + 1);
+            }
+
+            return domingos;
         }
 
         cargarDatos();
